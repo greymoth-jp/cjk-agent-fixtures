@@ -1,0 +1,114 @@
+{
+  "name": "cjk-agent-fixtures localization friction taxonomy",
+  "version": "1.0",
+  "license": "MIT",
+  "source": "github.com/greymoth-jp/cjk-agent-fixtures",
+  "model": "If a system assumes X, then failure Y occurs in context Z.",
+  "scripts_covered": [
+    "Japanese (kana/kanji)",
+    "Korean (Hangul)",
+    "Chinese (pinyin)",
+    "Arabic (RTL)",
+    "Hebrew (RTL)",
+    "Latin and Arabic combining marks"
+  ],
+  "types": {
+    "format": {
+      "id": 1,
+      "name": "Format mismatch",
+      "assumes": "one character is one byte and one display column, in a single canonical encoding",
+      "failure": "text is cut mid-character, the cursor lands in the wrong column, and two equal strings compare unequal",
+      "context": "input is CJK (3 UTF-8 bytes, 2 columns), Hangul, RTL (2 bytes), or carries combining marks (0 columns, NFC vs NFD)",
+      "fixtures": 3
+    },
+    "legal_schema": {
+      "id": 2,
+      "name": "Legal / schema mismatch",
+      "assumes": "one global shape for an address, an invoice, a tax line, or a receipt",
+      "failure": "a required field has nowhere to go, or a value is rejected by a validator that does not know the local rule",
+      "context": "Japanese invoice retention (インボイス / 適格請求書), the 特商法 disclosure block, postal and name-order shape, or a tax-identifier format the global schema never modeled",
+      "fixtures": 0,
+      "note": "Not exercised by this input-handling artifact. The compliance surface lives in a separate validator layer; listed for completeness because the taxonomy spans all three layers."
+    },
+    "cultural_ux": {
+      "id": 3,
+      "name": "Cultural / UX mismatch",
+      "assumes": "every keystroke commits immediately, focus changes are harmless, and text flows left to right",
+      "failure": "the key that confirms an IME candidate is read as submit, pending composition is dropped on focus change, the field freezes after refocus, or a line lays out backwards",
+      "context": "a user typing through an IME (kana, Hangul, pinyin) or entering a right-to-left script (Arabic, Hebrew)",
+      "fixtures": 4
+    }
+  },
+  "fixtures": [
+    {
+      "id": 1,
+      "slug": "early-enter-compose-confirm",
+      "type": "cultural_ux",
+      "scripts": ["JP", "KO", "ZH"],
+      "breaks": "An Enter handler that ignores isComposing submits on the key that confirms an IME candidate, eating the first attempt at every message.",
+      "asserts": "The confirm Enter does not submit; only the real Enter does.",
+      "fixture_js": "js/test/01-early-enter-compose-confirm.test.js",
+      "fixture_go": "go/editor_test.go"
+    },
+    {
+      "id": 2,
+      "slug": "byte-boundary-crash",
+      "type": "format",
+      "scripts": ["JP", "KO", "AR", "HE"],
+      "breaks": "Slicing text by raw byte index lands inside a multi-byte sequence (CJK/Hangul are 3 bytes, Arabic/Hebrew are 2) and produces U+FFFD.",
+      "asserts": "A byte slice corrupts; a code-point slice keeps characters whole.",
+      "fixture_js": "js/test/02-byte-boundary-crash.test.js",
+      "fixture_go": "go/bytes_test.go"
+    },
+    {
+      "id": 3,
+      "slug": "fullwidth-width",
+      "type": "format",
+      "scripts": ["JP", "KO", "ZH", "AR", "combining"],
+      "breaks": "A renderer that counts characters instead of columns misplaces the cursor: fullwidth CJK and Hangul take 2 columns, combining marks take 0.",
+      "asserts": "displayWidth counts columns; the naive per-character count is flagged wrong.",
+      "fixture_js": "js/test/03-fullwidth-width.test.js",
+      "fixture_go": "go/width_test.go"
+    },
+    {
+      "id": 4,
+      "slug": "commit-callback-drop",
+      "type": "cultural_ux",
+      "scripts": ["JP", "KO", "ZH"],
+      "breaks": "Focus moves away mid-composition and compositionend never fires, so the pending text is silently dropped.",
+      "asserts": "A correct editor commits the pending composition on blur; a dropping one loses it.",
+      "fixture_js": "js/test/04-commit-callback-drop.test.js",
+      "fixture_go": "go/editor_test.go"
+    },
+    {
+      "id": 5,
+      "slug": "re-entry-after-blur",
+      "type": "cultural_ux",
+      "scripts": ["JP", "KO", "ZH"],
+      "breaks": "isComposing stays true after focus leaves during composition, so the field rejects every later keystroke and looks frozen.",
+      "asserts": "After blur and refocus, a plain keystroke is accepted again.",
+      "fixture_js": "js/test/05-re-entry-after-blur.test.js",
+      "fixture_go": "go/editor_test.go"
+    },
+    {
+      "id": 6,
+      "slug": "bidi-base-direction",
+      "type": "cultural_ux",
+      "scripts": ["AR", "HE"],
+      "breaks": "A field that hard-codes LTR or guesses direction from the first character lays Arabic/Hebrew out backwards when the line starts with a digit or bracket (123 mrhba).",
+      "asserts": "Base direction follows the first strong character (Unicode Bidi P2/P3); leading neutrals are skipped.",
+      "fixture_js": "js/test/06-bidi-base-direction.test.js",
+      "fixture_go": "go/bidi_test.go"
+    },
+    {
+      "id": 7,
+      "slug": "nfc-nfd-normalization",
+      "type": "format",
+      "scripts": ["Latin accents", "KO"],
+      "breaks": "The same text precomposed (NFC) vs decomposed (NFD) compares unequal under raw ===, so a login fails, a file isn't found, or a dedup keeps both copies.",
+      "asserts": "A normalized compare treats the forms as equal; the raw compare is flagged wrong.",
+      "fixture_js": "js/test/07-nfc-nfd-normalization.test.js",
+      "fixture_go": "go/normalize_test.go"
+    }
+  ]
+}
