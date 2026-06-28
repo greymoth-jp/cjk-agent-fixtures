@@ -28,3 +28,37 @@ func TestByteBoundary_Differ(t *testing.T) {
 		t.Fatal("byte slice and code-point slice should differ on CJK input")
 	}
 }
+
+// The crash is not Japanese-specific: Korean syllables are also 3 UTF-8 bytes,
+// Arabic and Hebrew letters are 2. Each byteCut lands mid-character; each
+// runeCut keeps characters whole.
+func TestByteBoundary_Multilingual(t *testing.T) {
+	cases := []struct {
+		lang    string
+		s       string
+		byteCut int
+		runeCut int
+		head    string
+	}{
+		{"Korean", "ok한국test", 3, 3, "ok한"},
+		{"Arabic", "okمرحباtest", 3, 3, "okم"},
+		{"Hebrew", "okשלוםtest", 3, 3, "okש"},
+	}
+	for _, c := range cases {
+		t.Run(c.lang, func(t *testing.T) {
+			if IsCleanUTF8(ByteSlice(c.s, c.byteCut)) {
+				t.Fatalf("byte slice of %q reported valid; expected a cut rune", c.s)
+			}
+			safe := CodePointSlice(c.s, c.runeCut)
+			if safe != c.head {
+				t.Fatalf("code-point slice = %q, want %q", safe, c.head)
+			}
+			if !IsCleanUTF8(safe) {
+				t.Fatalf("code-point slice %q should be valid UTF-8", safe)
+			}
+			if ByteSlice(c.s, c.byteCut) == CodePointSlice(c.s, c.runeCut) {
+				t.Fatal("byte slice and code-point slice should differ")
+			}
+		})
+	}
+}

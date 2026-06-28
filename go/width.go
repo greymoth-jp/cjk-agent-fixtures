@@ -1,9 +1,11 @@
-// Package cjkfixtures holds runnable regression fixtures for the five ways
-// CJK / IME input breaks in editors, terminals, and AI agents.
+// Package cjkfixtures holds runnable regression fixtures for the ways
+// multilingual text input — CJK, Korean, Chinese, RTL (Arabic/Hebrew), and
+// combining marks — breaks in editors, terminals, and AI agents.
 package cjkfixtures
 
-// East Asian Width — column width of a string in a fixed-width grid. CJK
-// fullwidth characters take 2 columns (failure mode #3, fullwidth-width).
+// East Asian Width — column width of a string in a fixed-width grid. CJK and
+// Hangul fullwidth characters take 2 columns; combining marks (Latin accents,
+// Arabic harakat, Hebrew points) take 0 (failure mode #3, fullwidth-width).
 
 type runeRange struct{ lo, hi rune }
 
@@ -27,14 +29,33 @@ var wideRanges = []runeRange{
 	{0x20000, 0x3fffd}, // CJK Unified Ideographs Extension B and beyond
 }
 
+// Zero-width: nonspacing combining marks across scripts, zero-width
+// space/joiner/marks, and variation selectors. Small, dependency-free table.
+var zeroRanges = []runeRange{
+	{0x0300, 0x036f}, // combining diacritical marks (Latin)
+	{0x0483, 0x0489}, // Cyrillic combining
+	{0x0591, 0x05bd}, // Hebrew points
+	{0x05bf, 0x05bf},
+	{0x05c1, 0x05c2},
+	{0x05c4, 0x05c5},
+	{0x05c7, 0x05c7},
+	{0x0610, 0x061a}, // Arabic marks
+	{0x064b, 0x065f}, // Arabic harakat (fatha, damma, kasra, ...)
+	{0x0670, 0x0670}, // Arabic superscript alef
+	{0x06d6, 0x06dc},
+	{0x06df, 0x06e4},
+	{0x06e7, 0x06e8},
+	{0x06ea, 0x06ed},
+	{0x200b, 0x200f}, // ZWSP, ZWNJ, ZWJ, LRM, RLM
+	{0xfe00, 0xfe0f}, // variation selectors
+}
+
 // CharWidth returns the column width of a single rune (0, 1, or 2).
 func CharWidth(r rune) int {
-	switch {
-	case r == 0x200b,
-		r >= 0x0300 && r <= 0x036f, // combining marks
-		r >= 0xfe00 && r <= 0xfe0f, // variation selectors
-		r >= 0x200c && r <= 0x200f: // ZWNJ/ZWJ/marks
-		return 0
+	for _, rng := range zeroRanges {
+		if r >= rng.lo && r <= rng.hi {
+			return 0
+		}
 	}
 	for _, rng := range wideRanges {
 		if r >= rng.lo && r <= rng.hi {

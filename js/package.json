@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "Runnable CI regression fixtures for the five ways CJK / IME input breaks in editors, terminals, and AI agents.",
+  "description": "Multilingual agent-input regression fixtures (CJK / Korean / RTL / combining) for editors, terminals, and AI agents.",
   "scripts": {
     "test": "vitest run"
   },

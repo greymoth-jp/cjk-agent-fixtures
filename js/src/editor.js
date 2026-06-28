@@ -1,9 +1,10 @@
 // A minimal, framework-agnostic model of an IME-aware text input.
 //
-// It reproduces the lifecycle a real DOM input goes through during Japanese
-// (and any CJK) composition: compositionstart -> compositionupdate(s) ->
-// compositionend, plus keydown / blur / focus. The `bugs` set lets a fixture
-// construct a deliberately broken editor and prove the test catches it.
+// It reproduces the lifecycle a real DOM input goes through during composition
+// for any IME — Japanese kana, Korean Hangul, Chinese pinyin candidates:
+// compositionstart -> compositionupdate(s) -> compositionend, plus keydown /
+// blur / focus. The `bugs` set lets a fixture construct a deliberately broken
+// editor and prove the test catches it.
 //
 // Adapt the event methods to your real component (wire `keydown` to your
 // keydown handler, `compositionStart/Update/End` to the matching DOM events,

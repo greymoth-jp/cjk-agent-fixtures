@@ -1,8 +1,11 @@
 // East Asian Width — column width of a string when rendered in a fixed-width
-// grid (terminal, code editor, TUI). CJK fullwidth characters take 2 columns.
+// grid (terminal, code editor, TUI). CJK and Hangul fullwidth characters take 2
+// columns; combining marks (Latin accents, Arabic harakat, Hebrew points) take
+// 0.
 //
 // Failure mode #3 (fullwidth-width): renderers that assume 1 character == 1
-// column tear cursors and box-drawing the moment a 日本語 string shows up.
+// column tear cursors and box-drawing the moment a 日本語 or 한국어 string shows
+// up — and over-count Arabic/Hebrew text whose vowel marks add no columns.
 
 // Ranges that render two columns wide (East Asian Width "W" and "F").
 // Intentionally a small, dependency-free table covering the characters that
@@ -24,16 +27,31 @@ const WIDE_RANGES = [
   [0x20000, 0x3fffd], // CJK Unified Ideographs Extension B and beyond
 ];
 
+// Zero-width: combining marks (nonspacing) across scripts, zero-width
+// space/joiner/marks, and variation selectors. Small, dependency-free table.
+const ZERO_RANGES = [
+  [0x0300, 0x036f], // combining diacritical marks (Latin)
+  [0x0483, 0x0489], // Cyrillic combining
+  [0x0591, 0x05bd], // Hebrew points
+  [0x05bf, 0x05bf],
+  [0x05c1, 0x05c2],
+  [0x05c4, 0x05c5],
+  [0x05c7, 0x05c7],
+  [0x0610, 0x061a], // Arabic marks
+  [0x064b, 0x065f], // Arabic harakat (fatha, damma, kasra, ...)
+  [0x0670, 0x0670], // Arabic superscript alef
+  [0x06d6, 0x06dc],
+  [0x06df, 0x06e4],
+  [0x06e7, 0x06e8],
+  [0x06ea, 0x06ed],
+  [0x200b, 0x200f], // ZWSP, ZWNJ, ZWJ, LRM, RLM
+  [0xfe00, 0xfe0f], // variation selectors
+];
+
 /** Column width of a single code point (0, 1, or 2). */
 export function charWidth(cp) {
-  // Zero-width: combining marks, zero-width space/joiner, variation selectors.
-  if (
-    cp === 0x200b ||
-    (cp >= 0x0300 && cp <= 0x036f) ||
-    (cp >= 0xfe00 && cp <= 0xfe0f) ||
-    (cp >= 0x200c && cp <= 0x200f)
-  ) {
-    return 0;
+  for (const [lo, hi] of ZERO_RANGES) {
+    if (cp >= lo && cp <= hi) return 0;
   }
   for (const [lo, hi] of WIDE_RANGES) {
     if (cp >= lo && cp <= hi) return 2;
