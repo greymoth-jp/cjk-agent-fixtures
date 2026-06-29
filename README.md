@@ -196,6 +196,77 @@ jobs:
       - run: go test ./...
 ```
 
+## Drop-in CI gate (GitHub Action)
+
+The wiring above is a few lines, but you can also let an action do it. It runs
+the corpus against your handlers, scores the result, and fails the build when a
+case that should pass does not, so a CJK or IME regression blocks the release
+instead of shipping.
+
+```yaml
+name: cjk
+on: [push, pull_request]
+jobs:
+  cjk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: greymoth-jp/cjk-agent-fixtures@v1
+        with:
+          subject: test/cjk-subject.mjs
+```
+
+`subject` points at a small module that wires each failure mode to your code. It
+is a plain object of handler functions; implement only the ones you have and the
+rest are skipped, so you can adopt the gate one mode at a time. See
+[`examples/subject.example.mjs`](examples/subject.example.mjs) for the full shape.
+
+```js
+// test/cjk-subject.mjs
+import { displayWidth, dedupKey, trimInput } from "../src/text.js"; // your code
+import { createInput } from "../src/input.js";                      // your component adapter
+
+export default {
+  width: (s) => displayWidth(s),                 // #3
+  equalNFKC: (a, b) => dedupKey(a) === dedupKey(b), // #9
+  trim: (s) => trimInput(s),                      // #11
+  editor: () => createInput(),                    // #1, #4, #5
+};
+```
+
+Leave `subject` out and it runs the package's own reference handlers, a
+self-check that passes every case. That is useful for confirming the action is
+wired before you point it at your code.
+
+Other inputs:
+
+- `baseline` — a JSON file written by `--update-baseline`. With it set, the gate
+  fails only on *new* failures (a regression) and reports the ones you fixed, so
+  a project that already has gaps can adopt the gate and still block the next
+  one.
+- `min-score` — fail below a score (0 to 100). The default is strict: any
+  failing case fails the build.
+- `categories` — a comma list (`width,equality,direction,whitespace,slice,editor`)
+  to run a subset.
+- `report` — a path for a Markdown report; the same report is added to the job
+  summary.
+
+The same runner works from the command line, so you can run it locally before
+you push:
+
+```bash
+npx cjk-fixtures-check --subject test/cjk-subject.mjs
+# write a baseline, then block regressions against it
+npx cjk-fixtures-check --subject test/cjk-subject.mjs --baseline cjk-baseline.json --update-baseline
+npx cjk-fixtures-check --subject test/cjk-subject.mjs --baseline cjk-baseline.json
+```
+
+It checks the handlers you wire. It does not inspect your binary or guess your
+behaviour, so a mode you do not wire is not covered. Exit code is 0 when the
+gate passes and 1 when it does not.
+
 ## Wiring to a real DOM component
 
 The editor model is framework-agnostic so the fixtures run anywhere with zero

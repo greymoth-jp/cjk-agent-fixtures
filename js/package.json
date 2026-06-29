@@ -26,6 +26,9 @@
   "author": "greymoth",
   "main": "./index.js",
   "types": "./index.d.ts",
+  "bin": {
+    "cjk-fixtures-check": "./cli/run.js"
+  },
   "exports": {
     ".": {
       "types": "./index.d.ts",
@@ -38,6 +41,8 @@
     "index.js",
     "index.d.ts",
     "src",
+    "cli/run.js",
+    "cli/runner.js",
     "taxonomy.json",
     "README.md",
     "LICENSE"
@@ -47,7 +52,8 @@
     "access": "public"
   },
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "check": "node ./cli/run.js"
   },
   "devDependencies": {
     "vitest": "^4.1.9"

@@ -1,0 +1,49 @@
+name: "CJK / IME reliability check"
+description: "Run the cjk-agent-fixtures corpus as a release-blocking regression gate for Japanese-IME, CJK, and Unicode input handling."
+author: "greymoth"
+
+branding:
+  icon: "type"
+  color: "gray-dark"
+
+inputs:
+  subject:
+    description: "Path to a subject module (a default export of handler functions) to test. Omit it to run the bundled reference handlers, a corpus self-check that passes every case."
+    required: false
+    default: ""
+  baseline:
+    description: "Path to a baseline JSON written by --update-baseline. When set, the gate fails only on NEW failures (regressions) and reports the ones that were fixed."
+    required: false
+    default: ""
+  min-score:
+    description: "Fail if the score is below this (0-100). Ignored when a baseline is set. Default behaviour is strict: any failing case fails the build."
+    required: false
+    default: ""
+  categories:
+    description: "Comma-separated subset to run: width,equality,direction,whitespace,slice,editor. Default runs all."
+    required: false
+    default: ""
+  report:
+    description: "Path to write a Markdown report. The same report is added to the job summary automatically."
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: cjk-fixtures-check
+      shell: bash
+      env:
+        CJK_SUBJECT: ${{ inputs.subject }}
+        CJK_BASELINE: ${{ inputs.baseline }}
+        CJK_MIN_SCORE: ${{ inputs.min-score }}
+        CJK_CATEGORIES: ${{ inputs.categories }}
+        CJK_REPORT: ${{ inputs.report }}
+      run: |
+        args=()
+        [ -n "$CJK_SUBJECT" ]    && args+=(--subject "$CJK_SUBJECT")
+        [ -n "$CJK_BASELINE" ]   && args+=(--baseline "$CJK_BASELINE")
+        [ -n "$CJK_MIN_SCORE" ]  && args+=(--min-score "$CJK_MIN_SCORE")
+        [ -n "$CJK_CATEGORIES" ] && args+=(--categories "$CJK_CATEGORIES")
+        [ -n "$CJK_REPORT" ]     && args+=(--md "$CJK_REPORT")
+        node "$GITHUB_ACTION_PATH/js/cli/run.js" "${args[@]}"

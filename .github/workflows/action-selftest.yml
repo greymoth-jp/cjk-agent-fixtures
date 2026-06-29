@@ -1,0 +1,28 @@
+name: action-selftest
+on: [push, pull_request]
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # The reference handlers pass every case, so the gate is green out of the box.
+      - name: reference subject passes
+        uses: ./
+
+      # A deliberately broken subject must fail the gate, or the gate catches nothing.
+      - name: broken subject fails the gate
+        id: broken
+        continue-on-error: true
+        uses: ./
+        with:
+          subject: js/cli/__fixtures__/naive-subject.mjs
+
+      - name: assert the broken subject failed
+        if: steps.broken.outcome != 'failure'
+        run: |
+          echo "expected the gate to fail on the broken subject, got '${{ steps.broken.outcome }}'"
+          exit 1
