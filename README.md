@@ -29,7 +29,7 @@ checkmark that never goes red catches nothing.
 
 ## The taxonomy
 
-The seven failure modes are not seven unrelated bugs. They cluster into three
+The eleven failure modes are not eleven unrelated bugs. They cluster into three
 wrong assumptions a system makes about text. The full classification, with the
 "if a system assumes X, then failure Y in context Z" model for each group and a
 receipt for every case, is in [`TAXONOMY.md`](TAXONOMY.md). The machine-readable
@@ -37,17 +37,19 @@ version is [`taxonomy.json`](taxonomy.json).
 
 | Type | The wrong assumption | Fixtures |
 |---|---|---|
-| 1 Format mismatch | one character is one byte and one display column, in one canonical encoding | byte-boundary (#2), fullwidth width (#3), NFC/NFD (#7) |
+| 1 Format mismatch | one character is one byte, one UTF-16 unit, and one display column, in one canonical encoding | byte-boundary (#2), fullwidth width (#3), NFC/NFD (#7), UTF-16 surrogate (#8), NFKC width fold (#9), grapheme cluster (#10) |
 | 2 Legal / schema mismatch | one global shape for an address, invoice, tax line, or receipt | none here; a separate compliance layer |
-| 3 Cultural / UX mismatch | every keystroke commits now, focus changes are harmless, text flows left to right | compose-confirm Enter (#1), commit drop on blur (#4), re-entry after blur (#5), bidi direction (#6) |
+| 3 Cultural / UX mismatch | every keystroke commits now, focus changes are harmless, the space key is ASCII, text flows left to right | compose-confirm Enter (#1), commit drop on blur (#4), re-entry after blur (#5), bidi direction (#6), fullwidth-space trim (#11) |
 
-Counts: Type 1 has 3 fixtures, Type 2 has 0, Type 3 has 4. Seven in total, each
+Counts: Type 1 has 6 fixtures, Type 2 has 0, Type 3 has 5. Eleven in total, each
 present in both the JavaScript and the Go port.
 
 ## The failure modes
 
-Scripts covered: Japanese (kana / kanji), Korean (Hangul), Chinese (pinyin),
-Arabic and Hebrew (RTL), and combining marks (Latin accents, Arabic harakat).
+Scripts covered: Japanese (kana / kanji, rare CJK Extension B kanji, halfwidth
+katakana, fullwidth and ideographic forms), Korean (Hangul), Chinese (pinyin),
+Arabic and Hebrew (RTL), combining marks (Latin accents, Arabic harakat), and
+emoji (ZWJ sequences, skin tones, flags).
 
 | # | Failure mode | Type | Scripts | What breaks | The fixture asserts |
 |---|---|---|---|---|---|
@@ -58,6 +60,10 @@ Arabic and Hebrew (RTL), and combining marks (Latin accents, Arabic harakat).
 | 5 | re-entry after blur | 3 | JP · KO · ZH | On some browsers `isComposing` stays true after focus leaves during composition, so the field rejects every later keystroke and looks frozen. | After blur and refocus, a plain keystroke is accepted again. |
 | 6 | bidi base-direction | 3 | AR · HE | A field that hard-codes LTR, or guesses direction from the first character, lays Arabic and Hebrew out backwards when the line starts with a digit or bracket (`123 مرحبا`). | Base direction follows the first strong character (Unicode Bidi P2/P3); leading neutrals are skipped. |
 | 7 | NFC/NFD normalization | 1 | Latin accents · KO | The same text encoded precomposed (NFC) vs decomposed (NFD) compares unequal under raw `===`, so a login fails, a file "isn't found", or a dedup keeps both copies. | A normalized compare treats the forms as equal; the raw compare is flagged wrong. |
+| 8 | UTF-16 surrogate split | 1 | JP · emoji | A code point above U+FFFF — a rare kanji like `𠮷`, every emoji — is two UTF-16 units, so `str.length` over-counts and a `.slice` at an odd unit boundary leaves a lone surrogate. Distinct from #2: this crosses a UTF-16 unit boundary, not a UTF-8 byte one. | A UTF-16-unit slice corrupts; a code-point slice keeps the character whole. |
+| 9 | NFKC compatibility fold | 1 | JP | Halfwidth katakana (`ﾊﾝｶｸ`) and fullwidth ASCII (`Ａ１`) compare unequal to `ハンカク` and `A1` under raw `===` and even under a canonical (NFC) compare, so search, dedup, and "already taken" checks miss them. | A compatibility (NFKC) compare folds the width variants; the raw and NFC compares are flagged short. |
+| 10 | grapheme-cluster split | 1 | emoji · JP | A ZWJ emoji family, a skin-tone emoji, a flag, or a Japanese variation sequence (a name kanji plus a glyph selector) is one grapheme over several code points; even the correct code-point slice from #2 and #8 splits it. | A grapheme slice keeps the cluster whole; a code-point slice is shown tearing it apart. |
+| 11 | fullwidth-space trim | 3 | JP | The Japanese IME types U+3000 (`　`) on the space bar; an ASCII-only trim or blank check leaves it, so a field of only `　　` passes the not-empty check and `田中　` never matches `田中`. | A Unicode-aware trim removes U+3000; the ASCII-only trim is flagged for leaving it. |
 
 ## Run it
 
@@ -80,8 +86,9 @@ Two ways to use these, depending on how close you want to get:
    for Japanese, Korean, and Chinese alike. Replace it with your real input and
    the assertions carry straight over.
 2. **Lift the pure helpers** directly. `displayWidth`, `codePointSlice`,
-   `baseDirection`, the normalization compare, and the byte-validity checks are
-   production-usable as-is.
+   `baseDirection`, the NFC and NFKC compares, `graphemes` / `graphemeSlice`,
+   the well-formed-UTF-16 check, and the Unicode-aware trim are production-usable
+   as-is.
 
 A minimal GitHub Actions job (this repo's own `.github/workflows/ci.yml`):
 
@@ -137,7 +144,7 @@ the same outcomes the model tests assert.
 
 ## Scope and limits
 
-Seven modes is a seed taxonomy, not a complete one. It covers the input and
+Eleven modes is a seed taxonomy, not a complete one. It covers the input and
 text-shaping layer for the scripts above. It does not cover sorting and
 collation, locale-aware date and number formatting, font fallback, or the legal
 and schema layer (Type 2 in the taxonomy, which lives in a separate compliance

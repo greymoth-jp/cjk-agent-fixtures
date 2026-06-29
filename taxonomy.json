@@ -6,20 +6,24 @@
   "model": "If a system assumes X, then failure Y occurs in context Z.",
   "scripts_covered": [
     "Japanese (kana/kanji)",
+    "Rare CJK Extension B kanji (above U+FFFF)",
+    "Halfwidth katakana",
+    "Fullwidth and ideographic forms",
     "Korean (Hangul)",
     "Chinese (pinyin)",
     "Arabic (RTL)",
     "Hebrew (RTL)",
-    "Latin and Arabic combining marks"
+    "Latin and Arabic combining marks",
+    "Emoji (ZWJ sequences, skin tones, flags)"
   ],
   "types": {
     "format": {
       "id": 1,
       "name": "Format mismatch",
-      "assumes": "one character is one byte and one display column, in a single canonical encoding",
-      "failure": "text is cut mid-character, the cursor lands in the wrong column, and two equal strings compare unequal",
-      "context": "input is CJK (3 UTF-8 bytes, 2 columns), Hangul, RTL (2 bytes), or carries combining marks (0 columns, NFC vs NFD)",
-      "fixtures": 3
+      "assumes": "one character is one byte, one UTF-16 unit, one display column, and one code point, in a single canonical encoding",
+      "failure": "text is cut mid-character, the cursor lands in the wrong column, an astral character or a joined cluster is split, and two equal strings compare unequal",
+      "context": "input is CJK (3 UTF-8 bytes, 2 columns), Hangul, RTL (2 bytes), carries combining marks (0 columns, NFC vs NFD), lives above U+FFFF (2 UTF-16 units), wears a width variant (NFKC), or is a multi-code-point grapheme (ZWJ / variation selector)",
+      "fixtures": 6
     },
     "legal_schema": {
       "id": 2,
@@ -33,10 +37,10 @@
     "cultural_ux": {
       "id": 3,
       "name": "Cultural / UX mismatch",
-      "assumes": "every keystroke commits immediately, focus changes are harmless, and text flows left to right",
-      "failure": "the key that confirms an IME candidate is read as submit, pending composition is dropped on focus change, the field freezes after refocus, or a line lays out backwards",
-      "context": "a user typing through an IME (kana, Hangul, pinyin) or entering a right-to-left script (Arabic, Hebrew)",
-      "fixtures": 4
+      "assumes": "every keystroke commits immediately, focus changes are harmless, the space key produces an ASCII space, and text flows left to right",
+      "failure": "the key that confirms an IME candidate is read as submit, pending composition is dropped on focus change, the field freezes after refocus, a fullwidth space survives a blank check, or a line lays out backwards",
+      "context": "a user typing through an IME (kana, Hangul, pinyin), whose space bar in fullwidth mode emits U+3000, or entering a right-to-left script (Arabic, Hebrew)",
+      "fixtures": 5
     }
   },
   "fixtures": [
@@ -109,6 +113,46 @@
       "asserts": "A normalized compare treats the forms as equal; the raw compare is flagged wrong.",
       "fixture_js": "js/test/07-nfc-nfd-normalization.test.js",
       "fixture_go": "go/normalize_test.go"
+    },
+    {
+      "id": 8,
+      "slug": "utf16-surrogate-split",
+      "type": "format",
+      "scripts": ["JP", "emoji"],
+      "breaks": "A code point above U+FFFF (rare kanji like 𠮷 U+20BB7, every emoji) is two UTF-16 code units, so str.length over-counts and a slice at an odd unit boundary leaves a lone surrogate that decodes to U+FFFD. Distinct from #2: this crosses a UTF-16 unit boundary, not a UTF-8 byte one.",
+      "asserts": "A UTF-16-unit slice corrupts; a code-point slice keeps the astral character whole.",
+      "fixture_js": "js/test/08-utf16-surrogate-split.test.js",
+      "fixture_go": "go/surrogate_test.go"
+    },
+    {
+      "id": 9,
+      "slug": "nfkc-compatibility-fold",
+      "type": "format",
+      "scripts": ["JP"],
+      "breaks": "Halfwidth katakana (ﾊﾝｶｸ) and fullwidth ASCII (Ａ１) are different code points from ハンカク and A1; raw === and even canonical (NFC, #7) comparison report them unequal, so search, dedup, and uniqueness checks miss them.",
+      "asserts": "A compatibility (NFKC) compare folds the width variants equal; the raw and NFC compares are flagged short.",
+      "fixture_js": "js/test/09-nfkc-compatibility-fold.test.js",
+      "fixture_go": "go/compat_test.go"
+    },
+    {
+      "id": 10,
+      "slug": "grapheme-cluster-split",
+      "type": "format",
+      "scripts": ["emoji", "JP"],
+      "breaks": "A ZWJ emoji family, a skin-tone emoji, a flag, or a Japanese ideographic variation sequence (a name kanji + U+E0100) is one grapheme over several code points; even the correct code-point slice from #2 and #8 splits it, stripping a skin tone, breaking a flag, or changing a name kanji's glyph.",
+      "asserts": "A grapheme slice keeps the cluster whole; a code-point slice is shown tearing it apart.",
+      "fixture_js": "js/test/10-grapheme-cluster-split.test.js",
+      "fixture_go": "go/graphemes_test.go"
+    },
+    {
+      "id": 11,
+      "slug": "fullwidth-space-trim",
+      "type": "cultural_ux",
+      "scripts": ["JP"],
+      "breaks": "The Japanese IME in fullwidth mode types U+3000 (ideographic space) on the space bar; an ASCII-only trim or blank check leaves it, so a required field of only 　　 passes the not-empty check and a value of 田中　 never matches 田中 on lookup or dedup.",
+      "asserts": "A Unicode-aware trim (native trim(), strings.TrimSpace) removes U+3000; the ASCII-only trim is flagged for leaving it.",
+      "fixture_js": "js/test/11-fullwidth-space-trim.test.js",
+      "fixture_go": "go/whitespace_test.go"
     }
   ]
 }
