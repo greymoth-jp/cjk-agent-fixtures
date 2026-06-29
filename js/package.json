@@ -1,10 +1,48 @@
 {
-  "name": "cjk-agent-fixtures",
+  "name": "@greymoth/cjk-agent-fixtures",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "Multilingual agent-input regression fixtures (CJK / Korean / RTL / combining) for editors, terminals, and AI agents.",
+  "description": "Reference CJK / Korean / RTL / combining-mark input regression cases for editors, terminals, and AI agents. Run them against your own handlers in CI.",
+  "keywords": [
+    "cjk",
+    "ime",
+    "unicode",
+    "i18n",
+    "normalization",
+    "grapheme",
+    "bidi",
+    "east-asian-width",
+    "regression",
+    "fixtures"
+  ],
+  "homepage": "https://github.com/greymoth-jp/cjk-agent-fixtures",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/greymoth-jp/cjk-agent-fixtures.git",
+    "directory": "js"
+  },
+  "bugs": "https://github.com/greymoth-jp/cjk-agent-fixtures/issues",
+  "author": "greymoth",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./taxonomy.json": "./taxonomy.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "src",
+    "taxonomy.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
   "scripts": {
     "test": "vitest run"
   },

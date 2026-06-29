@@ -75,6 +75,87 @@ cd js && npm install && npm test
 cd go && go test ./...
 ```
 
+## Adopt it: run the cases against your own handler
+
+The point is not to verify this repo. It is to verify yours. Each failure mode
+ships as machine-readable cases: an input, the result a correct handler returns,
+and the result a common broken handler returns. Import a category, feed each
+input to your own width / normalize / Enter / trim / slice code, and assert in
+your own CI. The input bug then fails your build instead of shipping.
+
+Be clear about what this is. It is a reference CJK regression test suite, not a
+black-box scanner. It does not inspect your binary or guess your behaviour. You
+point it at your functions; the cases hold the inputs and the expected answers.
+
+JavaScript and TypeScript, under Vitest or Jest:
+
+```bash
+npm install -D @greymoth/cjk-agent-fixtures
+```
+
+```js
+import { describe, it, expect } from "vitest"; // or "@jest/globals"
+import {
+  widthCases,
+  equalityCases,
+  editorCases,
+  applyEvents,
+} from "@greymoth/cjk-agent-fixtures";
+import { displayWidth, dedupKey, createInput } from "../src/text.js"; // your code
+
+// #3: your column-width function counts fullwidth CJK as two columns.
+it.each(widthCases)("width of $input", ({ input, correctWidth }) => {
+  expect(displayWidth(input)).toBe(correctWidth);
+});
+
+// #7 and #9: your dedup / "already taken" key folds the variants you intend to.
+it.each(equalityCases)("$a vs $b", ({ a, b, nfkcEqual }) => {
+  expect(dedupKey(a) === dedupKey(b)).toBe(nfkcEqual);
+});
+
+// #1, #4, #5: replay the IME lifecycle against your input and check the result.
+// applyEvents drives any object exposing keydown / composition / blur / focus;
+// for a real component, swap it for a five-line adapter onto your handlers.
+it.each(editorCases)("$slug", ({ events, correct }) => {
+  const input = applyEvents(createInput(), events);
+  expect(input.value).toBe(correct.value);
+  expect(input.submitted).toBe(correct.submitted);
+});
+```
+
+Go, with `go test`:
+
+```bash
+go get github.com/greymoth-jp/cjk-agent-fixtures/go
+```
+
+```go
+import cjk "github.com/greymoth-jp/cjk-agent-fixtures/go"
+
+func TestCJKWidth(t *testing.T) {
+	for _, c := range cjk.WidthCases {
+		if got := DisplayWidth(c.Input); got != c.CorrectWidth {
+			t.Errorf("%s: width(%q) = %d, want %d", c.Slug, c.Input, got, c.CorrectWidth)
+		}
+	}
+}
+
+func TestCJKDedup(t *testing.T) {
+	for _, c := range cjk.EqualityCases {
+		if got := DedupKey(c.A) == DedupKey(c.B); got != c.NFKCEqual {
+			t.Errorf("%s: dedup(%q,%q) = %v, want %v", c.Slug, c.A, c.B, got, c.NFKCEqual)
+		}
+	}
+}
+```
+
+The categories are `widthCases` (#3), `equalityCases` (#7, #9), `directionCases`
+(#6), `whitespaceCases` (#11), `sliceCases` (#2, #8, #10), and `editorCases`
+(#1, #4, #5). Every case carries its `mode` and `slug`, so a failure points
+straight back to the documented failure mode and to `taxonomy.json`. Each case
+also carries the wrong value a broken handler produces (`naiveWidth`, `torn`,
+`broken`, and so on), so you can assert your test bites before you trust it.
+
 ## Wire it into your CI
 
 Two ways to use these, depending on how close you want to get:
